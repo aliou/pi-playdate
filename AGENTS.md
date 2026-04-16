@@ -85,6 +85,7 @@ docs/
 - Device deployment always requires `ctx.ui.confirm` -- no flag to skip.
 - Project scaffolding is handled by the skill (reference templates), not a tool. The agent reads the templates and creates files with `write`.
 - Runtime state (sim PID, log buffer, last build) is ephemeral -- never persisted to disk.
+- The simulator log ring buffer is fed by both simulator stdout/stderr and DAP `output` events when available, so reused simulators still surface runtime console output.
 - Clean shutdown in `session_shutdown` kills any tracked simulator process.
 - DAP-backed tools (`sim_input`, `sim_eval`, `screenshot`, `sim_state`, `sim_game_state`, `sim_game_state_write`) are serialized via `withFileMutationQueue` with a shared sentinel key. This prevents parallel tool calls from interleaving DAP requests.
 - `killSimulator` uses SIGKILL, not SIGTERM. Stuck simulators (e.g. after a Lua crash) ignore SIGTERM.
@@ -99,6 +100,6 @@ docs/
 
 - `docs/injected-dylib.md` -- how the dylib is injected and what code paths it calls
 - `docs/simulator-control-protocol.md` -- socket protocol between `playdate-simctl` and the injected agent
-- `docs/dap-protocol.md` -- DAP connection, request flow, and why calls are serialized
+- `docs/dap-protocol.md` -- DAP connection, request flow, output-event logging, and why calls are serialized
 - `docs/lua-injections.md` -- vendored `inspect.lua`, helper injection, and eval ergonomics
 - `docs/native-cli.md` -- native build flow, CLI responsibilities, and artifact layout

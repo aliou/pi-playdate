@@ -15,7 +15,7 @@ This skill teaches you how to develop games for the Panic Playdate using the `pi
 | `playdate_build` | Compile project to .pdx bundle |
 | `playdate_run_sim` | Launch the Playdate Simulator |
 | `playdate_stop_sim` | Stop the running simulator |
-| `playdate_sim_log` | Read simulator log output |
+| `playdate_sim_log` | Read recent simulator output from process logs and DAP console/output events |
 | `playdate_screenshot` | Capture simulator screenshot |
 | `playdate_sim_input` | Send D-pad/A/B/menu input to the simulator |
 | `playdate_sim_crank` | Set simulator crank angle and dock state |
@@ -61,7 +61,7 @@ Every project needs a `Source/pdxinfo` file. See [references/project-layout.md](
 1. `playdate_build` -- check `details.errors` for issues
 2. If errors, fix the source files and rebuild
 3. `playdate_run_sim` to test
-4. `playdate_sim_log` to check runtime output
+4. `playdate_sim_log` to check runtime output before deeper inspection
 5. `playdate_screenshot` to verify visuals
 6. `playdate_sim_state` to inspect hardware state at runtime
 7. `playdate_sim_eval` only for game-specific state or debugging
@@ -199,6 +199,7 @@ The Playdate Simulator exposes a DAP server on TCP port 55934 for Lua games. The
 - Writing structured game state via `__pi_state_write()` (`playdate_sim_game_state_write`)
 - Clean screenshots via `playdate.simulator.writeToFile()` (`playdate_screenshot`)
 - Direct button callbacks instead of OS keyboard simulation (`playdate_sim_input`)
+- Output-event capture into `playdate_sim_log` when the simulator emits DAP console/output events
 - Injected `inspect` / dump helpers for serialization and nicer eval output
 
 DAP is only available for Lua games. C games can still be built and run, but interactive tools (screenshot, input, eval) require DAP and will not work.

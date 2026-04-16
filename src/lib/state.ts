@@ -28,6 +28,7 @@ export interface RuntimeState {
   simStartedAt: string | null;
   simLogBuffer: string[];
   simLogTotalSeen: number;
+  simLogMaxLines: number;
   lastBuildResult: BuildResult | null;
   lastDevicePort: string | null;
   dap: DapClient | null;
@@ -40,6 +41,7 @@ export function createRuntimeState(): RuntimeState {
     simStartedAt: null,
     simLogBuffer: [],
     simLogTotalSeen: 0,
+    simLogMaxLines: 200,
     lastBuildResult: null,
     lastDevicePort: null,
     dap: null,

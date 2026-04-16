@@ -10,6 +10,9 @@ DAP is used for Lua-game-only features:
 - `playdate_sim_input`
 - `playdate_sim_eval`
 - `playdate_sim_state`
+- `playdate_sim_game_state`
+- `playdate_sim_game_state_write`
+- `playdate_sim_log` output-event capture
 
 C games do not expose the same Lua DAP surface.
 
@@ -61,6 +64,19 @@ Content-Length: <bytes>\r\n
 
 `dap.ts` parses frames manually and matches responses by `request_seq`.
 
+## Output events
+
+`src/lib/dap.ts` now also handles DAP `event` messages with `event = "output"`.
+
+Those lines are pushed into the same in-memory ring buffer used by `playdate_sim_log`.
+That matters when the simulator is reused: process stdout/stderr may not be attached to the current session, but DAP output events can still surface runtime console output.
+
+When the simulator includes an output category, the extension prefixes the line, for example:
+
+```text
+[stderr] main.lua:42: attempt to index a nil value
+```
+
 ## Why calls are serialized
 
 DAP-backed tools share one mutable connection and one REPL context. If multiple tool calls try to inject helpers, evaluate code, or capture screenshots in parallel, requests can interleave in unsafe ways.
@@ -73,6 +89,8 @@ That currently covers:
 - `playdate_sim_input`
 - `playdate_sim_eval`
 - `playdate_sim_state`
+- `playdate_sim_game_state`
+- `playdate_sim_game_state_write`
 - crank/accel tools too, because they often pair with state reads and we want a single ordered control path
 
 ## Screenshot method

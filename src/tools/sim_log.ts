@@ -33,8 +33,15 @@ export function createSimLogTool(state: RuntimeState) {
   return {
     name: "playdate_sim_log",
     label: "Playdate Sim Log",
-    description: "Get recent simulator log output.",
+    description:
+      "Get recent simulator log output from the simulator process and DAP console/output events.",
     promptSnippet: "Read Playdate Simulator log output",
+    promptGuidelines: [
+      "Use playdate_sim_log to read recent simulator output when debugging crashes, print() output, or runtime errors.",
+      "playdate_sim_log reads the shared in-memory ring buffer fed by simulator stdout/stderr and DAP output events when available.",
+      "After playdate_run_sim, playdate_sim_input, or a suspected runtime failure, check playdate_sim_log before assuming the game state explains the issue.",
+      "If playdate_sim_log is empty, the game may not have printed anything and the simulator may not have emitted console output for that path.",
+    ],
     parameters,
 
     async execute(
@@ -63,7 +70,7 @@ export function createSimLogTool(state: RuntimeState) {
             type: "text",
             text:
               truncated.content ||
-              "(no log output captured; use print() in your game code to see output here)",
+              "(no simulator or DAP output captured yet; use print() in your game code to emit logs)",
           },
         ],
         details: {

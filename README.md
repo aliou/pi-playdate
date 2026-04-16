@@ -29,7 +29,7 @@ pi install git:github.com/aliou/pi-playdate
 | `playdate_build` | Compile Lua or C project to .pdx bundle |
 | `playdate_run_sim` | Launch the Playdate Simulator |
 | `playdate_stop_sim` | Stop the running simulator |
-| `playdate_sim_log` | Read simulator log output (ring buffer) |
+| `playdate_sim_log` | Read recent simulator output from process logs and DAP console/output events |
 | `playdate_screenshot` | Capture simulator screenshot (returned as image) |
 | `playdate_sim_input` | Send D-pad/A/B/menu input to the simulator |
 | `playdate_sim_crank` | Set simulator crank angle and dock state |
@@ -78,11 +78,14 @@ For common simulator loops, prefer the typed tools over generic eval:
 - `playdate_sim_state` to confirm hardware state in one round-trip
 - `playdate_sim_game_state` for stable structured game-state dumps via `__pi_state()`
 - `playdate_sim_game_state_write` to apply structured state via `__pi_state_write()` with `patch` or `replace`
+- `playdate_sim_log` for recent simulator/runtime output before falling back to deeper inspection
 - `playdate_sim_eval` only for game-specific state or debugging
 
 Game code can expose a global `__pi_state()` function that returns a plain Lua table. Then `playdate_sim_game_state` verifies the convention and dumps that table.
 
 Games that support state injection can also expose `__pi_state_write(payload, mode)`. Then `playdate_sim_game_state_write` sends plain JSON-like data with `mode = "patch" | "replace"`.
+
+`playdate_sim_log` reads the shared in-memory log ring buffer fed by simulator stdout/stderr and DAP output events when available. Use it early in crash/debug loops.
 
 `playdate_sim_eval` still supports:
 

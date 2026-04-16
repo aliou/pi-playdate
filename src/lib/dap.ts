@@ -60,7 +60,6 @@ export interface DapResponse {
 export interface DapEvalResult {
   success: boolean;
   result?: string;
-  output?: string;
 }
 
 type PendingEntry = {
@@ -71,6 +70,8 @@ type PendingEntry = {
 };
 
 export class DapClient {
+  constructor(private readonly onOutput?: (line: string) => void) {}
+
   private socket: Socket | null = null;
   private seq: number = 0;
   private pending: Map<number, PendingEntry> = new Map();
@@ -267,7 +268,19 @@ export class DapClient {
           entry.resolve(msg as unknown as DapResponse);
         }
       }
-      // events are ignored
+
+      if (msg.type === "event" && msg.event === "output") {
+        const body = msg.body as Record<string, unknown> | undefined;
+        const output = typeof body?.output === "string" ? body.output : "";
+        const category =
+          typeof body?.category === "string" ? body.category : undefined;
+        const prefix =
+          category && category !== "console" ? `[${category}] ` : "";
+        for (const line of output.split(/\r?\n/)) {
+          if (!line.trim()) continue;
+          this.onOutput?.(`${prefix}${line}`);
+        }
+      }
     }
   }
 

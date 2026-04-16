@@ -18,6 +18,12 @@ import { DAP_PORT, DapClient } from "./dap";
 import type { RuntimeState } from "./state";
 import { pushLogLine } from "./state";
 
+function createDapClient(state: RuntimeState): DapClient {
+  return new DapClient((line) => {
+    pushLogLine(state, line, state.simLogMaxLines);
+  });
+}
+
 /**
  * Resolve the actual simulator executable path.
  * On macOS, if given a .app bundle, returns the internal binary so we get
@@ -112,6 +118,7 @@ export async function runSimulator(
   state: RuntimeState,
   maxLogLines: number,
 ): Promise<RunSimResult> {
+  state.simLogMaxLines = maxLogLines;
   // Check for an already-running simulator that is responsive (DAP reachable)
   const existingPid = findSimulatorPid();
   const dapReachable = existingPid ? await isDapReachable() : false;
@@ -137,7 +144,7 @@ export async function runSimulator(
     if (state.dap) {
       state.dap.disconnect();
     }
-    const dap = new DapClient();
+    const dap = createDapClient(state);
     state.dap = dap;
     try {
       // Brief delay for the new game to load after `open`
@@ -182,6 +189,7 @@ function spawnNewSimulator(
   state.simStartedAt = new Date().toISOString();
   state.simLogBuffer = [];
   state.simLogTotalSeen = 0;
+  state.simLogMaxLines = maxLogLines;
 
   const onData = (data: Buffer) => {
     const lines = data.toString().split("\n");
@@ -209,7 +217,7 @@ function spawnNewSimulator(
   });
 
   // Best-effort eager DAP connect. Tools also connect lazily on demand.
-  const dap = new DapClient();
+  const dap = createDapClient(state);
   state.dap = dap;
   setTimeout(async () => {
     try {
@@ -304,7 +312,7 @@ export async function ensureSimulatorDap(
   }
 
   if (!state.dap) {
-    state.dap = new DapClient();
+    state.dap = createDapClient(state);
   }
 
   await state.dap.connect(undefined, signal);
