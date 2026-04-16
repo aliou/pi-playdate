@@ -29,13 +29,14 @@ src/
   config.ts          # PlaydateConfig / ResolvedPlaydateConfig + ConfigLoader
   lib/
     dap.ts           # DAP client for simulator communication (TCP port 55934)
-    dap-queue.ts     # Sentinel key for serializing DAP tool calls
+    dap-queue.ts     # Sentinel key for serializing DAP-backed tool calls
     sdk.ts           # SDK path resolution, version, binary locations
     project.ts       # Project kind detection (lua/c/hybrid), pdxinfo, .pdx discovery
     device.ts        # Serial port scanning, data-disk mode, volume mount
     pdc.ts           # Run pdc, parse diagnostics
     cmake.ts         # CMake configure + build, parse gcc diagnostics
-    sim.ts           # Spawn/kill simulator, log ring buffer
+    sim.ts           # Spawn/kill simulator, log ring buffer, DAP lifecycle
+    sim-control.ts   # Runtime simulator control via native CLI + injected dylib
     exec.ts          # Thin pi.exec wrapper
     state.ts         # Ephemeral runtime state (sim PID, log buffer, last build)
   tools/
@@ -46,6 +47,10 @@ src/
     sim_log.ts       # playdate_sim_log
     screenshot.ts    # playdate_screenshot
     sim_input.ts     # playdate_sim_input
+    sim_crank.ts     # playdate_sim_crank
+    sim_accel.ts     # playdate_sim_accel
+    sim_state.ts     # playdate_sim_state
+    sim_game_state.ts# playdate_sim_game_state
     sim_eval.ts      # playdate_sim_eval
     run_device.ts    # playdate_run_device
   commands/
@@ -53,10 +58,23 @@ src/
     sim.ts           # /playdate:sim
     device.ts        # /playdate:device
     settings.ts      # /playdate:settings (via registerSettingsCommand)
+lua/
+  inspect.lua        # Vendored kikito/inspect.lua
+  helpers.lua        # Lua helpers injected into the simulator DAP REPL
+native/
+  playdate-simctl.swift   # Swift CLI for dylib injection + socket IPC
+  playdate-sim-agent.c    # Injected dylib with unix socket server
+scripts/
+  build-native-tools.sh   # Build native artifacts outside Nix shell
+bin/
+  playdate-simctl         # Built Swift CLI
+  playdate-sim-agent.dylib# Built dylib injected into simulator
 skills/
   playdate/
     SKILL.md
     references/      # SDK API references and project templates
+docs/
+  *.md               # Dev docs for internal architecture
 ```
 
 ## Design Decisions
@@ -67,6 +85,19 @@ skills/
 - Project scaffolding is handled by the skill (reference templates), not a tool. The agent reads the templates and creates files with `write`.
 - Runtime state (sim PID, log buffer, last build) is ephemeral -- never persisted to disk.
 - Clean shutdown in `session_shutdown` kills any tracked simulator process.
-- DAP-backed tools (sim_input, sim_eval, screenshot) are serialized via `withFileMutationQueue` with a shared sentinel key. This prevents parallel tool calls from interleaving DAP requests.
+- DAP-backed tools (`sim_input`, `sim_eval`, `screenshot`, `sim_state`, `sim_game_state`) are serialized via `withFileMutationQueue` with a shared sentinel key. This prevents parallel tool calls from interleaving DAP requests.
 - `killSimulator` uses SIGKILL, not SIGTERM. Stuck simulators (e.g. after a Lua crash) ignore SIGTERM.
 - `playdate_build` with `clean: true` auto-kills the simulator before building to avoid output directory conflicts.
+- Common hardware reads should use `playdate_sim_state`. Structured game reads should use `playdate_sim_game_state` with the `__pi_state()` convention. `playdate_sim_eval` is for game-specific debugging outside that contract.
+- Lua helpers are stored in `lua/`, not inline in TypeScript. `dap.ts` loads them at connect time.
+- `inspect.lua` is vendored in `lua/inspect.lua` so helper behavior is explicit and stable.
+- Crank/accelerometer control is implemented via a runtime-injected dylib plus a small Swift CLI, not by fake Lua callbacks.
+- Native simulator control is macOS-only today.
+
+## Dev docs
+
+- `docs/injected-dylib.md` -- how the dylib is injected and what code paths it calls
+- `docs/simulator-control-protocol.md` -- socket protocol between `playdate-simctl` and the injected agent
+- `docs/dap-protocol.md` -- DAP connection, request flow, and why calls are serialized
+- `docs/lua-injections.md` -- vendored `inspect.lua`, helper injection, and eval ergonomics
+- `docs/native-cli.md` -- native build flow, CLI responsibilities, and artifact layout

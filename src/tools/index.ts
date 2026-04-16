@@ -6,9 +6,13 @@ import { registerDoctorTool } from "./doctor";
 import { registerRunDeviceTool } from "./run_device";
 import { registerRunSimTool } from "./run_sim";
 import { registerScreenshotTool } from "./screenshot";
+import { registerSimAccelTool } from "./sim_accel";
+import { registerSimCrankTool } from "./sim_crank";
 import { registerSimEvalTool } from "./sim_eval";
+import { registerSimGameStateTool } from "./sim_game_state";
 import { registerSimInputTool } from "./sim_input";
 import { registerSimLogTool } from "./sim_log";
+import { registerSimStateTool } from "./sim_state";
 import { registerStopSimTool } from "./stop_sim";
 
 export function registerTools(
@@ -23,6 +27,10 @@ export function registerTools(
   registerSimLogTool(pi, state);
   registerScreenshotTool(pi, state);
   registerSimInputTool(pi, state);
+  registerSimCrankTool(pi, state);
+  registerSimAccelTool(pi, state);
+  registerSimStateTool(pi, state);
+  registerSimGameStateTool(pi, state);
   registerSimEvalTool(pi, state);
   registerRunDeviceTool(pi, config, state);
 }

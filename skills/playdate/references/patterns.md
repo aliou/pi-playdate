@@ -131,6 +131,25 @@ function loadGame()
 end
 ```
 
+## Agent-visible State Dump
+
+```lua
+function __pi_state()
+    return {
+        version = 1,
+        score = score,
+        level = level,
+        player = {
+            x = playerX,
+            y = playerY,
+        },
+        gameOver = gameOver,
+    }
+end
+```
+
+Keep `__pi_state()` stable and boring. Return plain Lua data only.
+
 ## Animation with Image Tables
 
 ```lua

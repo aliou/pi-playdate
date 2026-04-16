@@ -11,7 +11,8 @@ import {
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { DAP_QUEUE_KEY } from "../lib/dap-queue";
-import { ensureSimulatorDap } from "../lib/sim";
+import { ensureSimulatorDap, isSimulatorRunning } from "../lib/sim";
+import { openSimulatorMenu } from "../lib/sim-control";
 import type { RuntimeState } from "../lib/state";
 
 const BUTTONS = ["up", "down", "left", "right", "a", "b", "menu"] as const;
@@ -65,7 +66,7 @@ const BUTTON_CALLBACKS: Record<string, { down: string; up: string }> = {
   b: { down: "playdate.BButtonDown", up: "playdate.BButtonUp" },
 };
 
-export function createSimInputTool(_pi: ExtensionAPI, state: RuntimeState) {
+export function createSimInputTool(pi: ExtensionAPI, state: RuntimeState) {
   return {
     name: "playdate_sim_input",
     label: "Playdate Sim Input",
@@ -81,6 +82,7 @@ export function createSimInputTool(_pi: ExtensionAPI, state: RuntimeState) {
       "Use playdate_sim_input in this loop: playdate_screenshot, decide next move, playdate_sim_input, then playdate_screenshot again.",
       "For non-vision play, use playdate_sim_eval to read state before and after playdate_sim_input.",
       "playdate_sim_input sends direct Lua button callbacks for D-pad and A/B, so the agent can play without window focus or UI automation.",
+      "playdate_sim_input uses the simulator's native system-menu path for menu, not a Lua callback.",
     ],
     parameters,
 
@@ -96,20 +98,36 @@ export function createSimInputTool(_pi: ExtensionAPI, state: RuntimeState) {
         const action = params.action || "press";
         const repeat = params.repeat ?? 1;
 
-        const dap = await ensureSimulatorDap(state, signal);
-
         if (button === "menu") {
-          // Menu has no Lua callback -- use DAP eval to toggle the system menu
-          await dap.evalLua(
-            "playdate.setAutoLockDisabled(not playdate.isAutoLockDisabled())",
-            signal,
-          );
+          if (!isSimulatorRunning(state) || !state.simPid) {
+            throw new Error(
+              "Simulator is not running. Start it first with playdate_run_sim.",
+            );
+          }
+
+          if (action === "release") {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Menu release is a no-op; the native menu path opens on press.",
+                },
+              ],
+              details: { button: "menu", action, repeat },
+            };
+          }
+
+          for (let i = 0; i < repeat; i++) {
+            await openSimulatorMenu(pi, state.simPid, { signal });
+          }
+
           return {
-            content: [{ type: "text", text: "Toggled Playdate system menu" }],
-            details: { button: "menu", action: "press", repeat: 1 },
+            content: [{ type: "text", text: "Opened Playdate system menu" }],
+            details: { button: "menu", action, repeat },
           };
         }
 
+        const dap = await ensureSimulatorDap(state, signal);
         return sendInputDAP(dap, button, action, repeat, signal);
       });
     },

@@ -18,7 +18,11 @@ This skill teaches you how to develop games for the Panic Playdate using the `pi
 | `playdate_sim_log` | Read simulator log output |
 | `playdate_screenshot` | Capture simulator screenshot |
 | `playdate_sim_input` | Send D-pad/A/B/menu input to the simulator |
-| `playdate_sim_eval` | Evaluate Lua in the running simulator (read state, run code) |
+| `playdate_sim_crank` | Set simulator crank angle and dock state |
+| `playdate_sim_accel` | Set simulator accelerometer values |
+| `playdate_sim_state` | Read simulator hardware state in one call |
+| `playdate_sim_game_state` | Check the `__pi_state()` convention and dump structured game state |
+| `playdate_sim_eval` | Evaluate Lua in the running simulator (game-specific state, debugging) |
 | `playdate_run_device` | Deploy to a connected Playdate device |
 
 ## Creating a New Project
@@ -58,8 +62,9 @@ Every project needs a `Source/pdxinfo` file. See [references/project-layout.md](
 3. `playdate_run_sim` to test
 4. `playdate_sim_log` to check runtime output
 5. `playdate_screenshot` to verify visuals
-6. `playdate_sim_eval` to inspect game state at runtime
-7. Iterate
+6. `playdate_sim_state` to inspect hardware state at runtime
+7. `playdate_sim_eval` only for game-specific state or debugging
+8. Iterate
 
 ### Deploy to device
 
@@ -70,7 +75,9 @@ Every project needs a `Source/pdxinfo` file. See [references/project-layout.md](
 
 1. `playdate_sim_input` sends button input directly to the Lua game
 2. `playdate_screenshot` reads the current display (clean 400x240, no chrome)
-3. `playdate_sim_eval` reads or modifies game state at runtime
+3. `playdate_sim_state` reads common hardware state at runtime
+4. `playdate_sim_game_state` reads structured game state via `__pi_state()`
+5. `playdate_sim_eval` reads or modifies game-specific state at runtime
 
 `playdate_sim_input` supports these buttons: `up`, `down`, `left`, `right`, `a`, `b`, `menu`.
 
@@ -95,11 +102,12 @@ For visual play:
 
 For state-driven play without vision:
 
-1. Use `playdate_sim_eval` to inspect the current state
-2. Decide the next move from the returned values
-3. Use `playdate_sim_input` to send that move
-4. Use `playdate_sim_eval` again to confirm the new state
-5. Repeat until the game ends
+1. Use `playdate_sim_state` to inspect common hardware state
+2. Use `playdate_sim_eval` only if you need game-specific state
+3. Decide the next move from the returned values
+4. Use `playdate_sim_input` to send that move
+5. Use `playdate_sim_state` again to confirm the new state
+6. Repeat until the game ends
 
 Common `playdate_sim_input` examples:
 - move cursor right: `button: "right"`
@@ -112,16 +120,17 @@ Common `playdate_sim_input` examples:
 
 For models without vision or when you need structured data:
 
-- Use `playdate_sim_eval` with `p <expression>` to read values: `p score`, `p playerX`
-- Use `__pd_inspect(table)` to pretty-print tables: `p __pd_inspect(board)`
-- `__pd_inspect` is injected automatically by the extension -- no game code changes needed
+- Use `playdate_sim_state` for hardware values like crank, accelerometer, pressed buttons, FPS, battery, and elapsed time
+- Use `playdate_sim_eval` with a bare expression for pretty-printed values: `score`, `_G.game.board`, `playdate.readAccelerometer()`
+- Use `playdate_sim_eval` with `p <expression>` only when you want the raw DAP value
+- `inspect` is injected automatically by the extension, and bare expressions are wrapped in a multi-return-safe dump helper
 
-For richer state access, add a `getState()` global to the game during scaffolding:
+For stable structured game-state access, expose a global `__pi_state()` function:
 
 ```lua
--- Expose game state for the agent
-function getState()
+function __pi_state()
   return {
+    version = 1,
     board = board,
     cursor = { x = cursorX, y = cursorY },
     currentPlayer = currentPlayer,
@@ -131,9 +140,20 @@ function getState()
 end
 ```
 
-Then read it with: `playdate_sim_eval` expression `p __pd_inspect(getState())`
+Convention rules:
 
-Note: Lua `local` variables are not directly accessible via `playdate_sim_eval`. Only globals and values reachable from globals can be read. When writing game code, expose any state the agent needs to inspect as a global or via `getState()`.
+- The function name must be exactly `__pi_state`
+- It takes no arguments
+- It must return a Lua table
+- Keep values simple: numbers, strings, booleans, nil, and nested tables
+- Do not return userdata, functions, images, sprites, or other opaque objects
+- Keep the shape stable across frames when possible
+
+Then read it with `playdate_sim_game_state`.
+
+Use `playdate_sim_eval` for one-off debugging beyond that contract.
+
+Note: Lua `local` variables are not directly accessible via `playdate_sim_eval`. Only globals and values reachable from globals can be read. When writing game code, expose any state the agent needs to inspect through `__pi_state()` or another global you intentionally debug with `playdate_sim_eval`.
 
 ## Environment Setup
 
@@ -157,8 +177,10 @@ For API details, read the reference files in this skill's `references/` director
 The Playdate Simulator exposes a DAP server on TCP port 55934 for Lua games. The extension connects automatically after `playdate_run_sim`. DAP enables:
 
 - Evaluating Lua expressions (`playdate_sim_eval`)
+- Reading common hardware state in one call (`playdate_sim_state`)
+- Reading structured game state via `__pi_state()` (`playdate_sim_game_state`)
 - Clean screenshots via `playdate.simulator.writeToFile()` (`playdate_screenshot`)
 - Direct button callbacks instead of OS keyboard simulation (`playdate_sim_input`)
-- Injected `__pd_inspect()` helper for table serialization
+- Injected `inspect` / dump helpers for serialization and nicer eval output
 
 DAP is only available for Lua games. C games can still be built and run, but interactive tools (screenshot, input, eval) require DAP and will not work.

@@ -1,4 +1,10 @@
+import { readFileSync } from "node:fs";
 import { createConnection, type Socket } from "node:net";
+import { fileURLToPath } from "node:url";
+
+const LUA_DIR = fileURLToPath(new URL("../../lua/", import.meta.url));
+const INSPECT_LUA = readFileSync(`${LUA_DIR}inspect.lua`, "utf8");
+const HELPERS_LUA = readFileSync(`${LUA_DIR}helpers.lua`, "utf8");
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -294,11 +300,6 @@ export class DapClient {
     return result.result ?? "";
   }
 
-  async printExpr(expression: string, signal?: AbortSignal): Promise<string> {
-    const result = await this.evaluate(`p ${expression}`, signal);
-    return result.result ?? "";
-  }
-
   async screenshot(outputPath: string, signal?: AbortSignal): Promise<void> {
     await this.evalLua(
       `playdate.simulator.writeToFile(playdate.graphics.getDisplayImage(), "${outputPath}")`,
@@ -309,32 +310,14 @@ export class DapClient {
   private async injectHelpers(signal?: AbortSignal): Promise<void> {
     if (this.injected) return;
 
-    const lua = `
-function __pd_inspect(v, depth)
-  depth = depth or 3
-  if depth <= 0 then return tostring(v) end
-  local t = type(v)
-  if t ~= "table" then return tostring(v) end
-  local parts = {}
-  local arr = #v > 0
-  if arr then
-    for i = 1, math.min(#v, 50) do
-      parts[#parts+1] = __pd_inspect(v[i], depth - 1)
-    end
-    if #v > 50 then parts[#parts+1] = "..." end
-  else
-    local count = 0
-    for k, val in pairs(v) do
-      if count >= 50 then parts[#parts+1] = "..."; break end
-      parts[#parts+1] = tostring(k) .. "=" .. __pd_inspect(val, depth - 1)
-      count = count + 1
-    end
-  end
-  return "{" .. table.concat(parts, ", ") .. "}"
-end
-`.trim();
+    // Load kikito/inspect.lua as a chunk, expose its return value as `inspect`.
+    // inspect.lua uses `local` statements at top level and ends with `return inspect`,
+    // so wrapping in `(function() ... end)()` yields the library table.
+    await this.evalLua(`inspect = (function()\n${INSPECT_LUA}\nend)()`, signal);
 
-    await this.evalLua(lua, signal);
+    // Load our helpers, which reference `inspect` defined above.
+    await this.evalLua(HELPERS_LUA, signal);
+
     this.injected = true;
   }
 }

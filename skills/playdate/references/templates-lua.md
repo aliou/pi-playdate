@@ -38,6 +38,28 @@ Notes:
 - No `import` statements are needed for the base SDK. Use `import "CoreLibs/sprites"` etc. only when using those libraries.
 - `playdate.drawFPS(x,y)` is a debug helper -- remove it for release builds.
 
+## Agent-visible game state convention
+
+If the agent will need stable structured game-state reads, add a global `__pi_state()` function from the start:
+
+```lua
+function __pi_state()
+    return {
+        version = 1,
+        -- add game state here
+    }
+end
+```
+
+Rules:
+- Name must be exactly `__pi_state`
+- Takes no arguments
+- Returns a Lua table
+- Keep values simple: numbers, strings, booleans, nil, and nested tables
+- Do not return userdata, functions, images, sprites, or other opaque objects
+
+The agent can then call `playdate_sim_game_state` to verify the convention and dump the state.
+
 ## Common imports
 
 Add these only when you need the functionality:

@@ -30,6 +30,10 @@
   "files": [
     "src",
     "skills",
+    "lua",
+    "native",
+    "scripts",
+    "bin",
     "schema.json",
     "README.md"
   ],
@@ -73,6 +77,8 @@
     "gen:schema": "ts-json-schema-generator --path src/config.ts --type PlaydateConfig --no-type-check -o schema.json",
     "check:schema": "ts-json-schema-generator --path src/config.ts --type PlaydateConfig --no-type-check -o /tmp/schema-check.json && diff -q schema.json /tmp/schema-check.json",
     "check:lockfile": "pnpm install --frozen-lockfile --ignore-scripts",
+    "build:native": "./scripts/build-native-tools.sh",
+    "postinstall": "./scripts/build-native-tools.sh",
     "prepare": "[ -d .git ] && husky || true",
     "changeset": "changeset",
     "version": "changeset version",
