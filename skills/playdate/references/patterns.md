@@ -150,6 +150,37 @@ end
 
 Keep `__pi_state()` stable and boring. Return plain Lua data only.
 
+## Agent-visible State Write
+
+```lua
+local function deepMerge(dst, src)
+    for k, v in pairs(src) do
+        if type(dst[k]) == "table" and type(v) == "table" and #dst[k] == 0 and #v == 0 then
+            deepMerge(dst[k], v)
+        else
+            dst[k] = v
+        end
+    end
+    return dst
+end
+
+function __pi_state_write(payload, mode)
+    local current = __pi_state()
+    local nextState = mode == "patch" and deepMerge(current, payload) or payload
+
+    -- validate nextState here
+    score = nextState.score
+    level = nextState.level
+    playerX = nextState.player.x
+    playerY = nextState.player.y
+    gameOver = nextState.gameOver
+
+    return { ok = true, version = 1 }
+end
+```
+
+Prefer validating and applying through real game fields or methods instead of mutating random globals.
+
 ## Animation with Image Tables
 
 ```lua

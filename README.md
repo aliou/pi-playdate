@@ -36,6 +36,7 @@ pi install git:github.com/aliou/pi-playdate
 | `playdate_sim_accel` | Set simulator accelerometer values |
 | `playdate_sim_state` | Read simulator hardware state (crank, accel, buttons, FPS, battery, time) |
 | `playdate_sim_game_state` | Check the `__pi_state()` convention and dump structured game state |
+| `playdate_sim_game_state_write` | Apply structured game state via `__pi_state_write()` using `patch` or `replace` |
 | `playdate_sim_eval` | Evaluate Lua expressions in the running simulator |
 | `playdate_run_device` | Deploy .pdx to connected Playdate (requires confirmation) |
 
@@ -76,9 +77,12 @@ For common simulator loops, prefer the typed tools over generic eval:
 - `playdate_sim_accel` for accelerometer values
 - `playdate_sim_state` to confirm hardware state in one round-trip
 - `playdate_sim_game_state` for stable structured game-state dumps via `__pi_state()`
+- `playdate_sim_game_state_write` to apply structured state via `__pi_state_write()` with `patch` or `replace`
 - `playdate_sim_eval` only for game-specific state or debugging
 
 Game code can expose a global `__pi_state()` function that returns a plain Lua table. Then `playdate_sim_game_state` verifies the convention and dumps that table.
+
+Games that support state injection can also expose `__pi_state_write(payload, mode)`. Then `playdate_sim_game_state_write` sends plain JSON-like data with `mode = "patch" | "replace"`.
 
 `playdate_sim_eval` still supports:
 

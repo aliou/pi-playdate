@@ -10,6 +10,7 @@ import { registerSimAccelTool } from "./sim_accel";
 import { registerSimCrankTool } from "./sim_crank";
 import { registerSimEvalTool } from "./sim_eval";
 import { registerSimGameStateTool } from "./sim_game_state";
+import { registerSimGameStateWriteTool } from "./sim_game_state_write";
 import { registerSimInputTool } from "./sim_input";
 import { registerSimLogTool } from "./sim_log";
 import { registerSimStateTool } from "./sim_state";
@@ -31,6 +32,7 @@ export function registerTools(
   registerSimAccelTool(pi, state);
   registerSimStateTool(pi, state);
   registerSimGameStateTool(pi, state);
+  registerSimGameStateWriteTool(pi, state);
   registerSimEvalTool(pi, state);
   registerRunDeviceTool(pi, config, state);
 }

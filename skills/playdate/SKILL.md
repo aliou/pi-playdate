@@ -22,6 +22,7 @@ This skill teaches you how to develop games for the Panic Playdate using the `pi
 | `playdate_sim_accel` | Set simulator accelerometer values |
 | `playdate_sim_state` | Read simulator hardware state in one call |
 | `playdate_sim_game_state` | Check the `__pi_state()` convention and dump structured game state |
+| `playdate_sim_game_state_write` | Apply structured game state via `__pi_state_write()` using `patch` or `replace` |
 | `playdate_sim_eval` | Evaluate Lua in the running simulator (game-specific state, debugging) |
 | `playdate_run_device` | Deploy to a connected Playdate device |
 
@@ -77,7 +78,8 @@ Every project needs a `Source/pdxinfo` file. See [references/project-layout.md](
 2. `playdate_screenshot` reads the current display (clean 400x240, no chrome)
 3. `playdate_sim_state` reads common hardware state at runtime
 4. `playdate_sim_game_state` reads structured game state via `__pi_state()`
-5. `playdate_sim_eval` reads or modifies game-specific state at runtime
+5. `playdate_sim_game_state_write` applies structured state via `__pi_state_write()`
+6. `playdate_sim_eval` reads or modifies game-specific state at runtime
 
 `playdate_sim_input` supports these buttons: `up`, `down`, `left`, `right`, `a`, `b`, `menu`.
 
@@ -140,20 +142,35 @@ function __pi_state()
 end
 ```
 
+If the game should support agent-driven state injection, also expose `__pi_state_write(payload, mode)`:
+
+```lua
+function __pi_state_write(payload, mode)
+  -- mode is "patch" or "replace"
+  -- validate payload, apply it to the live game, then return a plain table
+  return { ok = true, version = 1 }
+end
+```
+
 Convention rules:
 
-- The function name must be exactly `__pi_state`
-- It takes no arguments
-- It must return a Lua table
-- Keep values simple: numbers, strings, booleans, nil, and nested tables
-- Do not return userdata, functions, images, sprites, or other opaque objects
-- Keep the shape stable across frames when possible
+- `__pi_state()` must take no arguments and return a Lua table
+- `__pi_state_write(payload, mode)` should accept `mode = "patch" | "replace"`
+- `patch` should deep-merge into the current external state
+- `replace` should replace the full external state
+- Deep merge should recurse only through map-like tables; array-like tables should be replaced whole
+- Keep values simple: numbers, strings, booleans, and nested tables
+- Do not return or accept userdata, functions, images, sprites, or other opaque objects
+- Include a top-level `version` and reject unsupported versions in `__pi_state_write()`
+- Keep the external shape stable across frames when possible
 
-Then read it with `playdate_sim_game_state`.
+Then:
+- read with `playdate_sim_game_state`
+- write with `playdate_sim_game_state_write`
 
 Use `playdate_sim_eval` for one-off debugging beyond that contract.
 
-Note: Lua `local` variables are not directly accessible via `playdate_sim_eval`. Only globals and values reachable from globals can be read. When writing game code, expose any state the agent needs to inspect through `__pi_state()` or another global you intentionally debug with `playdate_sim_eval`.
+Note: Lua `local` variables are not directly accessible via `playdate_sim_eval`. Only globals and values reachable from globals can be read. When writing game code, expose any state the agent needs to inspect or apply through `__pi_state()` / `__pi_state_write()` or another global you intentionally debug with `playdate_sim_eval`.
 
 ## Environment Setup
 
@@ -179,6 +196,7 @@ The Playdate Simulator exposes a DAP server on TCP port 55934 for Lua games. The
 - Evaluating Lua expressions (`playdate_sim_eval`)
 - Reading common hardware state in one call (`playdate_sim_state`)
 - Reading structured game state via `__pi_state()` (`playdate_sim_game_state`)
+- Writing structured game state via `__pi_state_write()` (`playdate_sim_game_state_write`)
 - Clean screenshots via `playdate.simulator.writeToFile()` (`playdate_screenshot`)
 - Direct button callbacks instead of OS keyboard simulation (`playdate_sim_input`)
 - Injected `inspect` / dump helpers for serialization and nicer eval output

@@ -51,6 +51,7 @@ src/
     sim_accel.ts     # playdate_sim_accel
     sim_state.ts     # playdate_sim_state
     sim_game_state.ts# playdate_sim_game_state
+    sim_game_state_write.ts # playdate_sim_game_state_write
     sim_eval.ts      # playdate_sim_eval
     run_device.ts    # playdate_run_device
   commands/
@@ -85,10 +86,10 @@ docs/
 - Project scaffolding is handled by the skill (reference templates), not a tool. The agent reads the templates and creates files with `write`.
 - Runtime state (sim PID, log buffer, last build) is ephemeral -- never persisted to disk.
 - Clean shutdown in `session_shutdown` kills any tracked simulator process.
-- DAP-backed tools (`sim_input`, `sim_eval`, `screenshot`, `sim_state`, `sim_game_state`) are serialized via `withFileMutationQueue` with a shared sentinel key. This prevents parallel tool calls from interleaving DAP requests.
+- DAP-backed tools (`sim_input`, `sim_eval`, `screenshot`, `sim_state`, `sim_game_state`, `sim_game_state_write`) are serialized via `withFileMutationQueue` with a shared sentinel key. This prevents parallel tool calls from interleaving DAP requests.
 - `killSimulator` uses SIGKILL, not SIGTERM. Stuck simulators (e.g. after a Lua crash) ignore SIGTERM.
 - `playdate_build` with `clean: true` auto-kills the simulator before building to avoid output directory conflicts.
-- Common hardware reads should use `playdate_sim_state`. Structured game reads should use `playdate_sim_game_state` with the `__pi_state()` convention. `playdate_sim_eval` is for game-specific debugging outside that contract.
+- Common hardware reads should use `playdate_sim_state`. Structured game reads should use `playdate_sim_game_state` with the `__pi_state()` convention. Structured game writes should use `playdate_sim_game_state_write` with `__pi_state_write(payload, mode)`. `playdate_sim_eval` is for game-specific debugging outside that contract.
 - Lua helpers are stored in `lua/`, not inline in TypeScript. `dap.ts` loads them at connect time.
 - `inspect.lua` is vendored in `lua/inspect.lua` so helper behavior is explicit and stable.
 - Crank/accelerometer control is implemented via a runtime-injected dylib plus a small Swift CLI, not by fake Lua callbacks.

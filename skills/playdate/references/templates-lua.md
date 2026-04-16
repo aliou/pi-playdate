@@ -60,6 +60,23 @@ Rules:
 
 The agent can then call `playdate_sim_game_state` to verify the convention and dump the state.
 
+If the game should also support loading or editing state, add a matching writer:
+
+```lua
+function __pi_state_write(payload, mode)
+    -- mode is "patch" or "replace"
+    -- validate and apply payload here
+    return { ok = true, version = 1 }
+end
+```
+
+Recommended semantics:
+- `replace` uses `payload` as the full next external state
+- `patch` deep-merges `payload` into the current external state first
+- recurse only through map-like tables
+- replace array-like tables whole
+- reject unsupported `version` values
+
 ## Common imports
 
 Add these only when you need the functionality:
