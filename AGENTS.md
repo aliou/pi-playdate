@@ -60,8 +60,7 @@ src/
     device.ts        # /playdate:device
     settings.ts      # /playdate:settings (via registerSettingsCommand)
 lua/
-  inspect.lua        # Vendored kikito/inspect.lua
-  helpers.lua        # Lua helpers injected into the simulator DAP REPL
+  ad.lua             # Debug helper module injected into the simulator DAP REPL
 native/
   playdate-simctl.swift   # Swift CLI for dylib injection + socket IPC
   playdate-sim-agent.c    # Injected dylib with unix socket server
@@ -92,7 +91,7 @@ docs/
 - `playdate_build` with `clean: true` auto-kills the simulator before building to avoid output directory conflicts.
 - Common hardware reads should use `playdate_sim_state`. Structured game reads should use `playdate_sim_game_state` with the `__pi_state()` convention. Structured game writes should use `playdate_sim_game_state_write` with `__pi_state_write(payload, mode)`. `playdate_sim_eval` is for game-specific debugging outside that contract.
 - Lua helpers are stored in `lua/`, not inline in TypeScript. `dap.ts` loads them at connect time.
-- `inspect.lua` is vendored in `lua/inspect.lua` so helper behavior is explicit and stable.
+- DAP debug helpers live under a single injected global module: `ad`.
 - Crank/accelerometer control is implemented via a runtime-injected dylib plus a small Swift CLI, not by fake Lua callbacks.
 - Native simulator control is macOS-only today.
 
@@ -101,5 +100,5 @@ docs/
 - `docs/injected-dylib.md` -- how the dylib is injected and what code paths it calls
 - `docs/simulator-control-protocol.md` -- socket protocol between `playdate-simctl` and the injected agent
 - `docs/dap-protocol.md` -- DAP connection, request flow, output-event logging, and why calls are serialized
-- `docs/lua-injections.md` -- vendored `inspect.lua`, helper injection, and eval ergonomics
+- `docs/lua-injections.md` -- helper injection, table inspection, and eval ergonomics
 - `docs/native-cli.md` -- native build flow, CLI responsibilities, and artifact layout

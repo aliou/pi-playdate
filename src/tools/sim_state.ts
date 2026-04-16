@@ -132,7 +132,7 @@ export function createSimStateTool(state: RuntimeState) {
     ): Promise<AgentToolResult<SimStateDetails>> {
       return withFileMutationQueue(DAP_QUEUE_KEY, async () => {
         const dap = await ensureSimulatorDap(state, signal);
-        const result = await dap.evaluate("p __pd_state()", signal);
+        const result = await dap.evaluate("p ad.state()", signal);
         if (!result.success) {
           throw new Error(result.result ?? "Failed to read simulator state");
         }

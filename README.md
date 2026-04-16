@@ -89,9 +89,20 @@ Games that support state injection can also expose `__pi_state_write(payload, mo
 
 `playdate_sim_eval` still supports:
 
-- bare expressions: auto-inspected, e.g. `playdate.readAccelerometer()` -> `(0.1, 0.2, 0.3)`
+- bare expressions: auto-serialized, e.g. `playdate.readAccelerometer()` -> `(0.1, 0.2, 0.3)`
 - `p <expr>` for raw values
 - `eval <code>` for statements with captured `print()` output
+- optional table-inspection controls for bare expressions:
+  - `depth` to cap nesting
+  - `start` to page through array-like tables
+  - `keypath` to inspect a subtree like `cards.13`
+  - `keysOnly` to inspect only table keys
+
+Examples:
+
+- `playdate_sim_eval(expression="__pi_state()", keysOnly=true)`
+- `playdate_sim_eval(expression="__pi_state()", keypath="cards", start=13)`
+- `playdate_sim_eval(expression="__pi_state()", keypath="cards.1", keysOnly=true)`
 
 ## Skill
 

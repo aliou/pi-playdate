@@ -30,7 +30,7 @@ The extension opens a plain TCP socket and speaks DAP framing directly.
 1. Connect to `localhost:55934`
 2. Send `initialize`
 3. Send `configurationDone`
-4. Inject helper Lua code (`inspect.lua` + `helpers.lua`)
+4. Inject helper Lua code (`ad.lua`)
 5. Serve evaluate/screenshot helpers on top of the live connection
 
 ```mermaid
@@ -44,8 +44,7 @@ sequenceDiagram
     Queue->>DAP: ensure connected
     DAP->>Sim: initialize
     DAP->>Sim: configurationDone
-    DAP->>Sim: eval inspect.lua
-    DAP->>Sim: eval helpers.lua
+    DAP->>Sim: eval ad.lua
     Tool->>DAP: evaluate / screenshot request
     DAP->>Sim: evaluate(...)
     Sim-->>DAP: response
@@ -111,6 +110,6 @@ That is separate from native crank/accelerometer control.
 
 ## State method
 
-`playdate_sim_state` asks Lua to call `__pd_state()` and parses a compact string result into structured tool details.
+`playdate_sim_state` asks Lua to call `ad.state()` and parses a compact string result into structured tool details.
 
 That gives a better typed API for common hardware state than forcing the model to use raw eval calls.

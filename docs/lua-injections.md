@@ -8,51 +8,34 @@ The Playdate DAP REPL can evaluate Lua, but raw results are not ergonomic enough
 
 We inject helpers to make:
 
-- table inspection readable
+- safer value serialization available in one call
 - multi-return expressions readable
 - common hardware state available in one call
 
 ## Files
 
-- `lua/inspect.lua` -- vendored `kikito/inspect.lua`
-- `lua/helpers.lua` -- extension-specific helpers
+- `lua/ad.lua` -- extension-specific debug helper module
 
-These files are read by `src/lib/dap.ts` and evaluated after DAP connect.
-
-## Vendored inspect.lua
-
-We vendor `inspect.lua` rather than embedding a tiny custom inspector in TS strings.
-
-Reasons:
-
-- better output for tables and strings
-- explicit source, easy to audit
-- stable behavior
-- easier maintenance than inline template-string Lua
-
-`dap.ts` loads it as a chunk and assigns the returned module to a global:
-
-```lua
-inspect = (function()
-  ... inspect.lua contents ...
-end)()
-```
+This file is read by `src/lib/dap.ts` and evaluated after DAP connect.
 
 ## Helper functions
 
-### `__pd_dump(...)`
+### `ad.dump(...)`
 
-Varargs-safe pretty printer.
+Varargs-safe serializer.
 
 Why it exists:
 
-`inspect(value)` expects one root value. But many Playdate APIs, like `playdate.readAccelerometer()`, return multiple values. Passing them straight into `inspect(...)` breaks because the extra values are interpreted as optional parameters.
+Many Playdate APIs, like `playdate.readAccelerometer()`, return multiple values. We also need a returned string, not console output, so `printTable()` is not enough.
 
-`__pd_dump(...)` adapts that:
+`ad.dump(...)` adapts that with a small custom serializer:
 
 - zero returns -> `"nil"`
-- one return -> `inspect(value)`
-- multiple returns -> `(inspect(v1), inspect(v2), ...)`
+- one return -> Lua-like string output for plain values and tables
+- multiple returns -> `(v1, v2, ...)`
+- cycles -> `<cycle>`
+- deep nesting past the cap -> `<max-depth>`
+- large tables past the item cap -> `<truncated>`
 
 That is why bare `playdate_sim_eval` expressions can show:
 
@@ -60,7 +43,20 @@ That is why bare `playdate_sim_eval` expressions can show:
 (0.1, 0.2, 0.3)
 ```
 
-### `__pd_state()`
+### `ad.inspect(value, opts)`
+
+Safer table inspection helper used by `playdate_sim_eval` for bare expressions.
+
+Supported options:
+
+- `depth` -- maximum nested table depth
+- `start` -- 1-based start index for array-like tables
+- `keypath` -- dot-separated subpath like `cards.13`
+- `keysOnly` -- return only keys for the selected table
+
+This lets agents inspect large state incrementally instead of forcing one huge dump.
+
+### `ad.state()`
 
 Returns a compact `key=value|...` string containing common hardware/runtime state:
 
@@ -78,11 +74,18 @@ Returns a compact `key=value|...` string containing common hardware/runtime stat
 
 `playdate_sim_eval` normalizes user input before sending it to DAP:
 
-- bare expression -> wrapped in `p __pd_dump(...)`
+- bare expression -> wrapped in `p ad.inspect(...)`
 - `p <expr>` -> passed through raw
 - `eval <code>` -> wrapped in a single-chunk print-capture expression
 
-## Why print capture is not in helpers.lua
+Bare-expression dumps support:
+
+- `depth`
+- `start`
+- `keypath`
+- `keysOnly`
+
+## Why print capture is not in ad.lua
 
 Playdate's REPL binds `print` per evaluated chunk. A helper function defined in one eval call cannot reliably intercept `print()` from another later eval call.
 

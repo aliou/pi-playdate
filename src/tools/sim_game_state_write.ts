@@ -181,9 +181,9 @@ function buildWriteExpression(
     return "${PREFIX_INVALID}" .. outType
   end
   if value.ok == false then
-    return "${PREFIX_REJECTED}" .. __pd_dump(value)
+    return "${PREFIX_REJECTED}" .. ad.dump(value)
   end
-  return "${PREFIX_OK}" .. __pd_dump(value)
+  return "${PREFIX_OK}" .. ad.dump(value)
 end)()`;
 }
 
@@ -202,7 +202,7 @@ function buildReadExpression(): string {
   if outType ~= "table" then
     return "${READ_INVALID}" .. outType
   end
-  return "${READ_OK}" .. __pd_dump(value)
+  return "${READ_OK}" .. ad.dump(value)
 end)()`;
 }
 

@@ -105,7 +105,7 @@ function buildCheckExpression(): string {
   if outType ~= "table" then
     return "${PREFIX_INVALID}" .. outType
   end
-  return "${PREFIX_OK}" .. __pd_dump(value)
+  return "${PREFIX_OK}" .. ad.dump(value)
 end)()`;
 }
 

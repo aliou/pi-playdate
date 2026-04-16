@@ -194,6 +194,26 @@ export function createSimInputTool(pi: ExtensionAPI, state: RuntimeState) {
   };
 }
 
+async function waitMs(ms: number, signal?: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(
+        signal?.reason instanceof Error
+          ? signal.reason
+          : new Error("Operation aborted"),
+      );
+    };
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
 async function sendInputDAP(
   dap: { evalLua(code: string, signal?: AbortSignal): Promise<string> },
   button: string,
@@ -213,22 +233,7 @@ async function sendInputDAP(
         signal,
       );
       // For hold, we call down then up after a brief delay
-      await new Promise<void>((resolve, reject) => {
-        const abort = () => {
-          clearTimeout(timer);
-          reject(
-            signal?.reason instanceof Error
-              ? signal.reason
-              : new Error("Operation aborted"),
-          );
-        };
-        const timer = setTimeout(() => {
-          signal?.removeEventListener("abort", abort);
-          resolve();
-        }, 50);
-
-        signal?.addEventListener("abort", abort, { once: true });
-      });
+      await waitMs(50, signal);
       await dap.evalLua(
         `if ${callbacks.up} then ${callbacks.up}() end`,
         signal,
@@ -239,11 +244,20 @@ async function sendInputDAP(
         signal,
       );
     } else {
-      // press: call down callback (game typically handles input on down)
+      // press: send a tap by calling down then up
       await dap.evalLua(
         `if ${callbacks.down} then ${callbacks.down}() end`,
         signal,
       );
+      await dap.evalLua(
+        `if ${callbacks.up} then ${callbacks.up}() end`,
+        signal,
+      );
+      await waitMs(20, signal);
+    }
+
+    if (i < repeat - 1) {
+      await waitMs(20, signal);
     }
   }
 

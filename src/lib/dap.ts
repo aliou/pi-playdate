@@ -3,8 +3,7 @@ import { createConnection, type Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 
 const LUA_DIR = fileURLToPath(new URL("../../lua/", import.meta.url));
-const INSPECT_LUA = readFileSync(`${LUA_DIR}inspect.lua`, "utf8");
-const HELPERS_LUA = readFileSync(`${LUA_DIR}helpers.lua`, "utf8");
+const AD_LUA = readFileSync(`${LUA_DIR}ad.lua`, "utf8");
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -323,13 +322,7 @@ export class DapClient {
   private async injectHelpers(signal?: AbortSignal): Promise<void> {
     if (this.injected) return;
 
-    // Load kikito/inspect.lua as a chunk, expose its return value as `inspect`.
-    // inspect.lua uses `local` statements at top level and ends with `return inspect`,
-    // so wrapping in `(function() ... end)()` yields the library table.
-    await this.evalLua(`inspect = (function()\n${INSPECT_LUA}\nend)()`, signal);
-
-    // Load our helpers, which reference `inspect` defined above.
-    await this.evalLua(HELPERS_LUA, signal);
+    await this.evalLua(`ad = (function()\n${AD_LUA}\nend)()`, signal);
 
     this.injected = true;
   }

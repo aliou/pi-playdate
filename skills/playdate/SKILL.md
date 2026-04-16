@@ -123,9 +123,22 @@ Common `playdate_sim_input` examples:
 For models without vision or when you need structured data:
 
 - Use `playdate_sim_state` for hardware values like crank, accelerometer, pressed buttons, FPS, battery, and elapsed time
-- Use `playdate_sim_eval` with a bare expression for pretty-printed values: `score`, `_G.game.board`, `playdate.readAccelerometer()`
+- Use `playdate_sim_eval` with a bare expression for inspected values: `score`, `_G.game.board`, `playdate.readAccelerometer()`
 - Use `playdate_sim_eval` with `p <expression>` only when you want the raw DAP value
-- `inspect` is injected automatically by the extension, and bare expressions are wrapped in a multi-return-safe dump helper
+- `ad` is injected automatically by the extension, and bare expressions are wrapped in `ad.inspect(...)`
+
+For large tables, prefer narrower reads over one giant dump:
+
+- `depth` limits nested table expansion
+- `start` pages through array-like tables
+- `keypath` inspects a subtree like `cards.13`
+- `keysOnly` lists available keys without dumping values
+
+Examples:
+
+- `playdate_sim_eval(expression="__pi_state()", keysOnly=true)`
+- `playdate_sim_eval(expression="__pi_state()", keypath="cards", start=13)`
+- `playdate_sim_eval(expression="__pi_state()", keypath="cards.1", keysOnly=true)`
 
 For stable structured game-state access, expose a global `__pi_state()` function:
 
@@ -200,6 +213,6 @@ The Playdate Simulator exposes a DAP server on TCP port 55934 for Lua games. The
 - Clean screenshots via `playdate.simulator.writeToFile()` (`playdate_screenshot`)
 - Direct button callbacks instead of OS keyboard simulation (`playdate_sim_input`)
 - Output-event capture into `playdate_sim_log` when the simulator emits DAP console/output events
-- Injected `inspect` / dump helpers for serialization and nicer eval output
+- Injected `ad` debug module for serialization, subtree inspection, and nicer eval output
 
 DAP is only available for Lua games. C games can still be built and run, but interactive tools (screenshot, input, eval) require DAP and will not work.
