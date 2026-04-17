@@ -1,4 +1,4 @@
-import { cpSync } from "node:fs";
+import { cp, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { ToolBody, ToolCallHeader, ToolFooter } from "@aliou/pi-utils-ui";
 import type {
@@ -35,12 +35,91 @@ const parameters = Type.Object({
 
 type RunDeviceParams = Static<typeof parameters>;
 
-interface RunDeviceDetails {
+export interface RunDeviceDetails {
   port: string;
   volumePath: string;
   pdxName: string;
   durationMs: number;
   launched: boolean;
+}
+
+export async function executeRunDevice(
+  pi: ExtensionAPI,
+  config: ResolvedPlaydateConfig,
+  state: RuntimeState,
+  pdxPath: string | undefined,
+  signal: AbortSignal | undefined,
+  ctx: ExtensionContext,
+): Promise<AgentToolResult<RunDeviceDetails>> {
+  const start = Date.now();
+  const sdkPath = resolveSDKPath(config);
+  const pdutilPath = findPdutil(sdkPath);
+
+  let resolvedPdxPath = pdxPath;
+  if (!resolvedPdxPath && state.lastBuildResult) {
+    resolvedPdxPath = state.lastBuildResult.pdxPath;
+  }
+  if (!resolvedPdxPath) {
+    resolvedPdxPath = findPdxBundle(ctx.cwd) ?? undefined;
+  }
+  if (!resolvedPdxPath) {
+    throw new Error(
+      "No .pdx bundle found. Build the project first with playdate_build.",
+    );
+  }
+
+  const pdxName = basename(resolvedPdxPath);
+
+  const device = findDevice();
+  if (!device.connected || !device.port) {
+    throw new Error(
+      "No Playdate device connected. Connect via USB and try again.",
+    );
+  }
+
+  const port = device.port;
+  state.lastDevicePort = port;
+
+  await enterDataDiskMode(pi, pdutilPath, port, { signal });
+
+  const volumePath = getDataDiskMountPath();
+  await waitForVolume(volumePath, 30000, signal);
+
+  const destPath = join(volumePath, "Games", pdxName);
+  await rm(destPath, { recursive: true, force: true });
+  await cp(resolvedPdxPath, destPath, { recursive: true });
+
+  await pi.exec("sync", [], { signal });
+
+  if (process.platform === "darwin") {
+    await pi.exec("diskutil", ["eject", volumePath], { signal });
+  } else if (process.platform === "linux") {
+    await pi.exec("umount", [volumePath], { signal });
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  await runOnDevice(pi, pdutilPath, port, `/Games/${pdxName}`, { signal });
+
+  ctx.ui.notify(`${pdxName} deployed and launched`, "info");
+
+  const durationMs = Date.now() - start;
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Deployed ${pdxName} to device (${durationMs}ms)`,
+      },
+    ],
+    details: {
+      port,
+      volumePath,
+      pdxName,
+      durationMs,
+      launched: true,
+    },
+  };
 }
 
 export function createRunDeviceTool(
@@ -51,11 +130,9 @@ export function createRunDeviceTool(
   return {
     name: "playdate_run_device",
     label: "Playdate Run Device",
-    description:
-      "Deploy and run a .pdx bundle on a connected Playdate device. Requires user confirmation every time.",
+    description: "Deploy and run a .pdx bundle on a connected Playdate device.",
     promptSnippet: "Deploy game to connected Playdate device",
     promptGuidelines: [
-      "playdate_run_device always asks for user confirmation before deploying.",
       "playdate_run_device requires a Playdate connected via USB.",
     ],
     parameters,
@@ -67,105 +144,7 @@ export function createRunDeviceTool(
       _onUpdate: AgentToolUpdateCallback<RunDeviceDetails> | undefined,
       ctx: ExtensionContext,
     ): Promise<AgentToolResult<RunDeviceDetails>> {
-      const start = Date.now();
-      const sdkPath = resolveSDKPath(config);
-      const pdutilPath = findPdutil(sdkPath);
-
-      let pdxPath = params.pdxPath;
-      if (!pdxPath && state.lastBuildResult) {
-        pdxPath = state.lastBuildResult.pdxPath;
-      }
-      if (!pdxPath) {
-        pdxPath = findPdxBundle(ctx.cwd) ?? undefined;
-      }
-      if (!pdxPath) {
-        throw new Error(
-          "No .pdx bundle found. Build the project first with playdate_build.",
-        );
-      }
-
-      const pdxName = basename(pdxPath);
-
-      // Find device
-      const device = findDevice();
-      if (!device.connected || !device.port) {
-        throw new Error(
-          "No Playdate device connected. Connect via USB and try again.",
-        );
-      }
-
-      const port = device.port;
-      state.lastDevicePort = port;
-
-      // User confirmation required every time
-      const confirmed = await ctx.ui.confirm(
-        "Install on Playdate?",
-        `Upload ${pdxName} to device at ${port}?`,
-      );
-      if (!confirmed) {
-        return {
-          content: [{ type: "text", text: "Deployment cancelled by user" }],
-          details: {
-            port,
-            volumePath: "",
-            pdxName,
-            durationMs: Date.now() - start,
-            launched: false,
-          },
-        };
-      }
-
-      // Enter data-disk mode
-      ctx.ui.setWidget("playdate", ["Entering data-disk mode..."]);
-      await enterDataDiskMode(pi, pdutilPath, port, { signal });
-
-      // Wait for volume mount
-      ctx.ui.setWidget("playdate", ["Waiting for volume..."]);
-      const volumePath = getDataDiskMountPath();
-      await waitForVolume(volumePath, 15000, signal);
-
-      // Copy .pdx bundle
-      ctx.ui.setWidget("playdate", [`Copying ${pdxName}...`]);
-      const destPath = join(volumePath, "Games", pdxName);
-      cpSync(pdxPath, destPath, { recursive: true });
-
-      // Sync
-      await pi.exec("sync", [], { signal });
-
-      // Eject/unmount
-      if (process.platform === "darwin") {
-        await pi.exec("diskutil", ["eject", volumePath], { signal });
-      } else if (process.platform === "linux") {
-        await pi.exec("umount", [volumePath], { signal });
-      }
-
-      // Wait a moment for device to reboot
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Launch game
-      ctx.ui.setWidget("playdate", ["Launching..."]);
-      await runOnDevice(pi, pdutilPath, port, `/Games/${pdxName}`, { signal });
-
-      ctx.ui.setWidget("playdate", undefined);
-      ctx.ui.notify(`${pdxName} deployed and launched`, "info");
-
-      const durationMs = Date.now() - start;
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Deployed ${pdxName} to device (${durationMs}ms)`,
-          },
-        ],
-        details: {
-          port,
-          volumePath,
-          pdxName,
-          durationMs,
-          launched: true,
-        },
-      };
+      return executeRunDevice(pi, config, state, params.pdxPath, signal, ctx);
     },
 
     renderCall(args: RunDeviceParams, theme: Theme) {

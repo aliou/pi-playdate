@@ -21,9 +21,11 @@ export async function runPdc(
   pdcPath: string,
   sourceDir: string,
   outputDir: string,
-  opts?: { signal?: AbortSignal; cwd?: string },
+  opts?: { signal?: AbortSignal; cwd?: string; strip?: boolean },
 ): Promise<PdcResult> {
-  const args = [sourceDir, outputDir];
+  const args = opts?.strip
+    ? ["-s", sourceDir, outputDir]
+    : [sourceDir, outputDir];
   const result = await pi.exec(pdcPath, args, {
     cwd: opts?.cwd,
     signal: opts?.signal,

@@ -43,8 +43,133 @@ interface BuildParams {
   clean?: boolean;
 }
 
-interface BuildDetails extends BuildResult {
+export interface BuildDetails extends BuildResult {
   output?: string;
+}
+
+export interface ExecuteBuildOptions {
+  buildMode?: "debug" | "release";
+  stripLua?: boolean;
+}
+
+export async function executeBuild(
+  pi: ExtensionAPI,
+  config: ResolvedPlaydateConfig,
+  state: RuntimeState,
+  projectPath: string,
+  target: "simulator" | "device",
+  clean: boolean,
+  signal: AbortSignal | undefined,
+  opts?: ExecuteBuildOptions,
+): Promise<AgentToolResult<BuildDetails>> {
+  const sdkPath = resolveSDKPath(config);
+  const start = Date.now();
+  const buildMode = opts?.buildMode ?? config.buildMode;
+
+  const project = detectProject(projectPath);
+  const pdc = findPdc(sdkPath);
+  if (!pdc.ok) throw new Error(pdc.error ?? "pdc not found");
+
+  if (clean) {
+    killSimulator(state);
+  }
+
+  const allErrors: BuildResult["errors"] = [];
+  const allWarnings: BuildResult["warnings"] = [];
+  let buildOutput = "";
+
+  if (project.kind === "c" || project.kind === "hybrid") {
+    const cmake = await cmakeBuild(pi, projectPath, target, {
+      sdkPath,
+      buildMode,
+      clean,
+      signal,
+    });
+    buildOutput += cmake.output;
+    allErrors.push(...cmake.errors);
+    allWarnings.push(...cmake.warnings);
+
+    if (!cmake.success) {
+      const details: BuildDetails = {
+        kind: project.kind,
+        target,
+        pdxPath: project.outputDir,
+        durationMs: Date.now() - start,
+        warnings: allWarnings,
+        errors: allErrors,
+        output: truncateTail(buildOutput).content,
+      };
+      state.lastBuildResult = details;
+      const errorSummary =
+        allErrors.length > 0
+          ? allErrors
+              .map(
+                (e) => `${e.file ? `${e.file}:` : ""}${e.line}: ${e.message}`,
+              )
+              .join("; ")
+          : truncateTail(buildOutput).content || "Unknown C build failure";
+      throw new Error(`C build failed. ${errorSummary}`);
+    }
+  }
+
+  if (project.kind === "lua" || project.kind === "hybrid") {
+    const pdcResult = await withFileMutationQueue(
+      project.outputDir,
+      async () => {
+        return runPdc(pi, pdc.path, project.sourceDir, project.outputDir, {
+          cwd: projectPath,
+          signal,
+          strip: opts?.stripLua,
+        });
+      },
+    );
+    buildOutput += pdcResult.output;
+    allErrors.push(...pdcResult.errors);
+    allWarnings.push(...pdcResult.warnings);
+
+    if (!pdcResult.success) {
+      const details: BuildDetails = {
+        kind: project.kind,
+        target,
+        pdxPath: project.outputDir,
+        durationMs: Date.now() - start,
+        warnings: allWarnings,
+        errors: allErrors,
+        output: truncateTail(buildOutput).content,
+      };
+      state.lastBuildResult = details;
+      const errorSummary =
+        allErrors.length > 0
+          ? allErrors
+              .map(
+                (e) => `${e.file ? `${e.file}:` : ""}${e.line}: ${e.message}`,
+              )
+              .join("; ")
+          : truncateTail(buildOutput).content || "Unknown pdc failure";
+      throw new Error(`Build failed. ${errorSummary}`);
+    }
+  }
+
+  const durationMs = Date.now() - start;
+  const details: BuildDetails = {
+    kind: project.kind,
+    target,
+    pdxPath: project.outputDir,
+    durationMs,
+    warnings: allWarnings,
+    errors: allErrors,
+  };
+  state.lastBuildResult = details;
+
+  const summary =
+    allWarnings.length > 0
+      ? `Built ${project.pdxName} (${durationMs}ms, ${allWarnings.length} warning(s))`
+      : `Built ${project.pdxName} (${durationMs}ms)`;
+
+  return {
+    content: [{ type: "text", text: summary }],
+    details,
+  };
 }
 
 export function createBuildTool(
@@ -75,117 +200,16 @@ export function createBuildTool(
       const rawTarget = params.target || config.defaultTarget;
       const target: "simulator" | "device" =
         rawTarget === "device" ? "device" : "simulator";
-      const sdkPath = resolveSDKPath(config);
-      const start = Date.now();
 
-      const project = detectProject(projectPath);
-      const pdc = findPdc(sdkPath);
-      if (!pdc.ok) throw new Error(pdc.error ?? "pdc not found");
-
-      // Stop the simulator before a clean build to avoid file conflicts
-      if (params.clean) {
-        killSimulator(state);
-      }
-
-      const allErrors: BuildResult["errors"] = [];
-      const allWarnings: BuildResult["warnings"] = [];
-      let buildOutput = "";
-
-      // C build (if applicable)
-      if (project.kind === "c" || project.kind === "hybrid") {
-        const cmake = await cmakeBuild(pi, projectPath, target, {
-          sdkPath,
-          buildMode: config.buildMode,
-          clean: params.clean,
-          signal,
-        });
-        buildOutput += cmake.output;
-        allErrors.push(...cmake.errors);
-        allWarnings.push(...cmake.warnings);
-
-        if (!cmake.success) {
-          const details: BuildDetails = {
-            kind: project.kind,
-            target,
-            pdxPath: project.outputDir,
-            durationMs: Date.now() - start,
-            warnings: allWarnings,
-            errors: allErrors,
-            output: truncateTail(buildOutput).content,
-          };
-          state.lastBuildResult = details;
-          const errorSummary =
-            allErrors.length > 0
-              ? allErrors
-                  .map(
-                    (e) =>
-                      `${e.file ? `${e.file}:` : ""}${e.line}: ${e.message}`,
-                  )
-                  .join("; ")
-              : truncateTail(buildOutput).content || "Unknown C build failure";
-          throw new Error(`C build failed. ${errorSummary}`);
-        }
-      }
-
-      // Lua/pdc build
-      if (project.kind === "lua" || project.kind === "hybrid") {
-        const pdcResult = await withFileMutationQueue(
-          project.outputDir,
-          async () => {
-            return runPdc(pi, pdc.path, project.sourceDir, project.outputDir, {
-              cwd: projectPath,
-              signal,
-            });
-          },
-        );
-        buildOutput += pdcResult.output;
-        allErrors.push(...pdcResult.errors);
-        allWarnings.push(...pdcResult.warnings);
-
-        if (!pdcResult.success) {
-          const details: BuildDetails = {
-            kind: project.kind,
-            target,
-            pdxPath: project.outputDir,
-            durationMs: Date.now() - start,
-            warnings: allWarnings,
-            errors: allErrors,
-            output: truncateTail(buildOutput).content,
-          };
-          state.lastBuildResult = details;
-          const errorSummary =
-            allErrors.length > 0
-              ? allErrors
-                  .map(
-                    (e) =>
-                      `${e.file ? `${e.file}:` : ""}${e.line}: ${e.message}`,
-                  )
-                  .join("; ")
-              : truncateTail(buildOutput).content || "Unknown pdc failure";
-          throw new Error(`Build failed. ${errorSummary}`);
-        }
-      }
-
-      const durationMs = Date.now() - start;
-      const details: BuildDetails = {
-        kind: project.kind,
+      return executeBuild(
+        pi,
+        config,
+        state,
+        projectPath,
         target,
-        pdxPath: project.outputDir,
-        durationMs,
-        warnings: allWarnings,
-        errors: allErrors,
-      };
-      state.lastBuildResult = details;
-
-      const summary =
-        allWarnings.length > 0
-          ? `Built ${project.pdxName} (${durationMs}ms, ${allWarnings.length} warning(s))`
-          : `Built ${project.pdxName} (${durationMs}ms)`;
-
-      return {
-        content: [{ type: "text", text: summary }],
-        details,
-      };
+        params.clean ?? false,
+        signal,
+      );
     },
 
     renderCall(args: BuildParams, theme: Theme) {

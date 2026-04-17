@@ -27,6 +27,7 @@ pi install git:github.com/aliou/pi-playdate
 |---|---|
 | `playdate_doctor` | Check SDK installation, pdc, simulator, ARM toolchain, device |
 | `playdate_build` | Compile Lua or C project to .pdx bundle |
+| `playdate_build_release` | Compile Lua or C project to a release .pdx bundle (`pdc -s` for Lua) |
 | `playdate_run_sim` | Launch the Playdate Simulator |
 | `playdate_stop_sim` | Stop the running simulator |
 | `playdate_sim_log` | Read recent simulator output from process logs and DAP console/output events |
@@ -38,7 +39,9 @@ pi install git:github.com/aliou/pi-playdate
 | `playdate_sim_game_state` | Check the `__pi_state()` convention and dump structured game state |
 | `playdate_sim_game_state_write` | Apply structured game state via `__pi_state_write()` using `patch` or `replace` |
 | `playdate_sim_eval` | Evaluate Lua expressions in the running simulator |
-| `playdate_run_device` | Deploy .pdx to connected Playdate (requires confirmation) |
+| `playdate_device_log` | Read serial log output from a connected Playdate device |
+| `playdate_run_device` | Deploy .pdx to a connected Playdate |
+| `playdate_install_device` | Build, deploy, and launch a Playdate project on device |
 
 ## Commands
 

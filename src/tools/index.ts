@@ -2,7 +2,10 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { ResolvedPlaydateConfig } from "../config";
 import type { RuntimeState } from "../lib/state";
 import { registerBuildTool } from "./build";
+import { registerBuildReleaseTool } from "./build_release";
+import { registerDeviceLogTool } from "./device_log";
 import { registerDoctorTool } from "./doctor";
+import { registerInstallDeviceTool } from "./install_device";
 import { registerRunDeviceTool } from "./run_device";
 import { registerRunSimTool } from "./run_sim";
 import { registerScreenshotTool } from "./screenshot";
@@ -23,6 +26,9 @@ export function registerTools(
 ) {
   registerDoctorTool(pi, config);
   registerBuildTool(pi, config, state);
+  registerBuildReleaseTool(pi, config, state);
+  registerDeviceLogTool(pi, state);
+  registerInstallDeviceTool(pi, config, state);
   registerRunSimTool(pi, config, state);
   registerStopSimTool(pi, state);
   registerSimLogTool(pi, state);
