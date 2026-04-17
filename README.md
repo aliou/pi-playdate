@@ -1,3 +1,5 @@
+![banner](https://assets.aliou.me/pi-extensions/banners/pi-playdate.png)
+
 # pi-playdate
 
 A pi extension for developing [Playdate](https://play.date) games. Provides typed tools for building, running, inspecting, and deploying Playdate projects in Lua and C.
